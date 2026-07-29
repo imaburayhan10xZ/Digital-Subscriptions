@@ -1,0 +1,6 @@
+{
+  "name": "Dude Corporation",
+  "description": "Next-Generation Game Optimization SaaS Platform with dynamic products, license activation, manual payment gateway, user dashboard, and admin management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
