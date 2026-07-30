@@ -24,12 +24,13 @@ import {
   ManualSetupStatus
 } from './src/types/index.js';
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = 3000;
 
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+async function startServer() {
 
   // Helper to generate key: APEX-XXXX-XXXX-XXXX-PRO
   function generateLicenseKey(): string {
@@ -1381,4 +1382,8 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export { app };
