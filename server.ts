@@ -2,7 +2,6 @@ import express from 'express';
 import path from 'path';
 import bcrypt from 'bcryptjs';
 import urlMetadata from 'url-metadata';
-import admin from 'firebase-admin';
 import { createServer as createViteServer } from 'vite';
 import { db } from './src/db/database.js';
 import { generateToken, authMiddleware, adminMiddleware, AuthRequest } from './src/server/auth.js';
