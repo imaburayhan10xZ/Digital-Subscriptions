@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import urlMetadata from 'url-metadata';
 import { createServer as createViteServer } from 'vite';
 import { db } from './src/db/database.js';
+import { syncToFirestore } from './src/lib/firestoreSync.js';
 import { generateToken, authMiddleware, adminMiddleware, AuthRequest } from './src/server/auth.js';
 import {
   User,
@@ -30,15 +31,13 @@ const PORT = 3000;
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-async function startServer() {
-
-  // Helper to generate key: APEX-XXXX-XXXX-XXXX-PRO
-  function generateLicenseKey(): string {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    const randPart = (len: number) =>
-      Array.from({ length: len }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
-    return `APEX-${randPart(4)}-${randPart(4)}-${randPart(4)}-PRO`;
-  }
+// Helper to generate key: APEX-XXXX-XXXX-XXXX-PRO
+function generateLicenseKey(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const randPart = (len: number) =>
+    Array.from({ length: len }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+  return `APEX-${randPart(4)}-${randPart(4)}-${randPart(4)}-PRO`;
+}
 
   // ==================== AUTH ROUTES ====================
   app.post('/api/auth/register', (req, res) => {
@@ -1362,6 +1361,17 @@ async function startServer() {
     }
   });
 
+  app.post('/api/admin/sync-firestore', authMiddleware, adminMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const fullDb = db.getFullDatabase();
+      await syncToFirestore(fullDb);
+      return res.json({ success: true, message: 'Sync to Firestore initiated' });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message || 'Firestore sync failed' });
+    }
+  });
+
+async function startServer() {
   // Serve static files / Vite middleware
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

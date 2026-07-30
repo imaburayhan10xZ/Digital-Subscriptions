@@ -42,7 +42,8 @@ interface DatabaseSchema {
   manualSetupRequests: ManualSetupRequest[];
 }
 
-const DB_DIR = path.join(process.cwd(), 'data');
+const isVercel = Boolean(process.env.VERCEL);
+const DB_DIR = isVercel ? '/tmp/data' : path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DB_DIR, 'db.json');
 
 const defaultSettings: SiteSettings = {
@@ -74,8 +75,12 @@ const defaultCategories: Category[] = [
 ];
 
 function ensureDbExists(): DatabaseSchema {
-  if (!fs.existsSync(DB_DIR)) {
-    fs.mkdirSync(DB_DIR, { recursive: true });
+  try {
+    if (!fs.existsSync(DB_DIR)) {
+      fs.mkdirSync(DB_DIR, { recursive: true });
+    }
+  } catch (e) {
+    console.warn('Could not create DB_DIR:', e);
   }
 
   if (fs.existsSync(DB_FILE)) {
@@ -634,23 +639,24 @@ function ensureDbExists(): DatabaseSchema {
     manualSetupRequests: [],
   };
 
-  fs.writeFileSync(DB_FILE, JSON.stringify(initialSchema, null, 2), 'utf-8');
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(initialSchema, null, 2), 'utf-8');
+  } catch (e) {
+    console.warn('Could not write initial schema to file system:', e);
+  }
   return initialSchema;
 }
 
 let dbCache = ensureDbExists();
 
-// Initial sync on startup
-setTimeout(() => {
-  syncToFirestore(dbCache);
-}, 1000);
-
 export function saveDb() {
   try {
+    if (!fs.existsSync(DB_DIR)) {
+      fs.mkdirSync(DB_DIR, { recursive: true });
+    }
     fs.writeFileSync(DB_FILE, JSON.stringify(dbCache, null, 2), 'utf-8');
-    syncToFirestore(dbCache);
   } catch (err) {
-    console.error('Failed to save DB file', err);
+    console.warn('Failed to save DB file to disk:', err);
   }
 }
 

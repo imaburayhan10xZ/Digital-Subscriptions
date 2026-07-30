@@ -7,22 +7,17 @@ export async function syncToFirestore(dbData: any) {
   if (firestoreDisabled) return;
   try {
     if (!dbData) return;
-    console.log('Syncing data to Firestore (digital-subs)...');
 
     const syncCollection = async (collectionName: string, items: any[]) => {
-      if (!Array.isArray(items)) return;
+      if (!Array.isArray(items) || firestoreDisabled) return;
       for (const item of items) {
         if (item && item.id && !firestoreDisabled) {
           try {
             await setDoc(doc(db, collectionName, String(item.id)), item, { merge: true });
           } catch (err: any) {
-            if (err?.message?.includes('NOT_FOUND') || err?.code === 'not-found' || err?.code === 5) {
-              console.warn(`Firestore collection or database not found for project 'digital-subs'. Please ensure Firestore Database is created in your Firebase Console (https://console.firebase.google.com).`);
-              firestoreDisabled = true;
-              return;
-            } else {
-              console.error(`Error syncing item ${item.id} to ${collectionName}:`, err?.message || err);
-            }
+            firestoreDisabled = true;
+            console.warn(`Firestore sync disabled for ${collectionName}:`, err?.message || err);
+            return;
           }
         }
       }
@@ -40,9 +35,7 @@ export async function syncToFirestore(dbData: any) {
       try {
         await setDoc(doc(db, 'settings', 'site_settings'), dbData.settings, { merge: true });
       } catch (err: any) {
-        if (err?.message?.includes('NOT_FOUND') || err?.code === 'not-found' || err?.code === 5) {
-          firestoreDisabled = true;
-        }
+        firestoreDisabled = true;
       }
     }
 
@@ -52,12 +45,9 @@ export async function syncToFirestore(dbData: any) {
       console.log('Successfully synced data to Firestore!');
     }
   } catch (err: any) {
-    if (err?.message?.includes('NOT_FOUND') || err?.code === 'not-found' || err?.code === 5) {
-      console.warn(`Firestore Database not found for project 'digital-subs'. Disabling sync until database is created in Firebase Console.`);
-      firestoreDisabled = true;
-    } else {
-      console.error('Firestore sync error:', err?.message || err);
-    }
+    firestoreDisabled = true;
+    console.warn('Firestore sync stopped:', err?.message || err);
   }
 }
+
 
