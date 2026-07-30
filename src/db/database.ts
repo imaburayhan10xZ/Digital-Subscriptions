@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import bcrypt from 'bcryptjs';
+import { syncToFirestore } from '../lib/firestoreSync.js';
 import {
   User,
   Product,
@@ -81,13 +82,30 @@ function ensureDbExists(): DatabaseSchema {
     try {
       const raw = fs.readFileSync(DB_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
-      // Ensure missing default keys are populated if upgraded
-      if (!parsed.settings) parsed.settings = defaultSettings;
-      parsed.settings.siteName = 'Dude Corporation';
-      if (!parsed.categories || parsed.categories.length === 0) parsed.categories = defaultCategories;
-      if (!parsed.redeemKeys) parsed.redeemKeys = [];
-      if (!parsed.notifications) parsed.notifications = [];
-      return parsed as DatabaseSchema;
+      if (
+        parsed &&
+        Array.isArray(parsed.users) &&
+        parsed.users.length > 0 &&
+        parsed.passwords &&
+        typeof parsed.passwords === 'object'
+      ) {
+        if (!parsed.settings) parsed.settings = defaultSettings;
+        if (!parsed.categories || parsed.categories.length === 0) parsed.categories = defaultCategories;
+        if (!parsed.products) parsed.products = [];
+        if (!parsed.orders) parsed.orders = [];
+        if (!parsed.licenses) parsed.licenses = [];
+        if (!parsed.downloads) parsed.downloads = [];
+        if (!parsed.tickets) parsed.tickets = [];
+        if (!parsed.announcements) parsed.announcements = [];
+        if (!parsed.coupons) parsed.coupons = [];
+        if (!parsed.redeemKeys) parsed.redeemKeys = [];
+        if (!parsed.referrals) parsed.referrals = [];
+        if (!parsed.logs) parsed.logs = [];
+        if (!parsed.notifications) parsed.notifications = [];
+        if (!parsed.tutorials) parsed.tutorials = [];
+        if (!parsed.manualSetupRequests) parsed.manualSetupRequests = [];
+        return parsed as DatabaseSchema;
+      }
     } catch (e) {
       console.error('Failed to parse database, generating new database state', e);
     }
@@ -622,9 +640,15 @@ function ensureDbExists(): DatabaseSchema {
 
 let dbCache = ensureDbExists();
 
+// Initial sync on startup
+setTimeout(() => {
+  syncToFirestore(dbCache);
+}, 1000);
+
 export function saveDb() {
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(dbCache, null, 2), 'utf-8');
+    syncToFirestore(dbCache);
   } catch (err) {
     console.error('Failed to save DB file', err);
   }
