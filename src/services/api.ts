@@ -213,6 +213,15 @@ export const api = {
     return handleResponse<{ success: boolean; license: License }>(res);
   },
 
+  updateLicense: async (id: string, updates: Partial<License>) => {
+    const res = await fetch(`/api/licenses/${id}`, {
+      method: 'PUT',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    return handleResponse<License>(res);
+  },
+
   setUserHwid: async (hwid: string) => {
     const res = await fetch('/api/user/hwid', {
       method: 'POST',

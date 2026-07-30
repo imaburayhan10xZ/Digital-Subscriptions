@@ -93,6 +93,7 @@ export const AdminPage: React.FC = () => {
 
   // Redeem Key Generator Form State
   const [rdmProductId, setRdmProductId] = useState('');
+  const [rdmAssignedLicenseKey, setRdmAssignedLicenseKey] = useState('');
   const [rdmCode, setRdmCode] = useState('');
   const [rdmMaxUses, setRdmMaxUses] = useState(1);
   const [rdmValidityDays, setRdmValidityDays] = useState(30);
@@ -154,6 +155,13 @@ export const AdminPage: React.FC = () => {
   // Settings Form State
   const [settingsForm, setSettingsForm] = useState<Partial<SiteSettings>>({});
 
+  // Modal: Payment Approval
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [paymentActionType, setPaymentActionType] = useState<'APPROVED' | 'REJECTED' | null>(null);
+  const [adminNote, setAdminNote] = useState('');
+  const [customLicenseKey, setCustomLicenseKey] = useState('');
+
   useEffect(() => {
     if (authLoading) return; // Wait for session load
     if (!isAdmin) {
@@ -161,7 +169,10 @@ export const AdminPage: React.FC = () => {
       return;
     }
     loadAdminData();
-  }, [isAdmin, authLoading]);
+    if (settings) {
+      setSettingsForm(settings);
+    }
+  }, [isAdmin, authLoading, settings]);
 
   const loadAdminData = async () => {
     setLoading(true);
@@ -201,10 +212,6 @@ export const AdminPage: React.FC = () => {
       if (p.length > 0 && !rdmProductId) {
         setRdmProductId(p[0].id);
       }
-
-      if (settings) {
-        setSettingsForm(settings);
-      }
     } catch (e) {
       console.error('Failed to load admin dataset:', e);
     } finally {
@@ -221,13 +228,16 @@ export const AdminPage: React.FC = () => {
     }
     setRdmError('');
     try {
+      const uses = Number(rdmMaxUses);
       await api.createRedeemKey({
         productId: rdmProductId,
+        assignedLicenseKey: uses === 1 ? (rdmAssignedLicenseKey.trim() || undefined) : undefined,
         code: rdmCode.trim() || undefined,
-        maxUses: Number(rdmMaxUses),
+        maxUses: uses,
         validityDays: Number(rdmValidityDays),
       });
       setRdmCode('');
+      setRdmAssignedLicenseKey('');
       loadAdminData();
     } catch (err: any) {
       setRdmError(err.message || 'Failed to generate redeem key');
@@ -318,9 +328,15 @@ export const AdminPage: React.FC = () => {
   };
 
   // Payment Verification
-  const handleUpdateOrderStatus = async (orderId: string, status: 'APPROVED' | 'REJECTED') => {
+  const handleUpdateOrderStatus = async () => {
+    if (!selectedOrder || !paymentActionType) return;
     try {
-      await api.updateOrderStatus(orderId, status);
+      await api.updateOrderStatus(selectedOrder.id, paymentActionType, adminNote || undefined, customLicenseKey || undefined);
+      setIsPaymentModalOpen(false);
+      setAdminNote('');
+      setCustomLicenseKey('');
+      setSelectedOrder(null);
+      setPaymentActionType(null);
       loadAdminData();
     } catch (e: any) {
       alert(e.message || 'Failed to update order status');
@@ -360,6 +376,16 @@ export const AdminPage: React.FC = () => {
       loadAdminData();
     } catch (e: any) {
       alert(e.message || 'Reset failed');
+    }
+  };
+
+  const handleUpdateLicenseKey = async (licenseId: string, newKey: string) => {
+    try {
+      await api.updateLicense(licenseId, { licenseKey: newKey });
+      alert('License key updated successfully');
+      loadAdminData();
+    } catch (e: any) {
+      alert(e.message || 'Failed to update license key');
     }
   };
 
@@ -521,6 +547,22 @@ export const AdminPage: React.FC = () => {
     setTutPlatform(tut.platform);
     setTutDuration(tut.duration || '');
     setIsTutorialModalOpen(true);
+  };
+
+  const handleSyncMetadata = async () => {
+    if (!tutVideoUrl) return;
+    try {
+      const response = await fetch('/api/video-metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: tutVideoUrl }),
+      });
+      const data = await response.json();
+      if (data.title) setTutTitle(data.title);
+      if (data.description) setTutDescription(data.description);
+    } catch (e) {
+      alert('Failed to fetch metadata');
+    }
   };
 
   const handleSaveTutorial = async (e: React.FormEvent) => {
@@ -1048,6 +1090,17 @@ export const AdminPage: React.FC = () => {
                           </td>
                           <td className="py-3 text-right space-x-2">
                             <button
+                              onClick={() => {
+                                const newKey = prompt('Enter new License Key:', l.licenseKey);
+                                if (newKey && newKey !== l.licenseKey) {
+                                  handleUpdateLicenseKey(l.id, newKey.trim().toUpperCase());
+                                }
+                              }}
+                              className="px-2.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold text-[11px] rounded-lg"
+                            >
+                              Edit Key
+                            </button>
+                            <button
                               onClick={() => handleResetHwidAdmin(l.id)}
                               className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] rounded-lg"
                             >
@@ -1098,6 +1151,21 @@ export const AdminPage: React.FC = () => {
                           ))}
                         </select>
                       </div>
+
+                      {Number(rdmMaxUses) === 1 && (
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block font-bold text-slate-700">Assigned License Key (Optional)</label>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="e.g. APEX-XXXX-XXXX (or leave blank)"
+                            value={rdmAssignedLicenseKey}
+                            onChange={(e) => setRdmAssignedLicenseKey(e.target.value.toUpperCase())}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono uppercase font-bold text-slate-800"
+                          />
+                        </div>
+                      )}
 
                       <div>
                         <div className="flex items-center justify-between mb-1">
@@ -1430,14 +1498,22 @@ export const AdminPage: React.FC = () => {
                                 {o.status === 'PENDING' ? (
                                   <div className="inline-flex items-center space-x-2">
                                     <button
-                                      onClick={() => handleUpdateOrderStatus(o.id, 'APPROVED')}
+                                      onClick={() => {
+                                        setSelectedOrder(o);
+                                        setPaymentActionType('APPROVED');
+                                        setIsPaymentModalOpen(true);
+                                      }}
                                       className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-500/20 transition flex items-center space-x-1"
                                     >
                                       <CheckCircle className="w-3.5 h-3.5" />
                                       <span>Approve</span>
                                     </button>
                                     <button
-                                      onClick={() => handleUpdateOrderStatus(o.id, 'REJECTED')}
+                                      onClick={() => {
+                                        setSelectedOrder(o);
+                                        setPaymentActionType('REJECTED');
+                                        setIsPaymentModalOpen(true);
+                                      }}
                                       className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md shadow-rose-500/20 transition flex items-center space-x-1"
                                     >
                                       <XCircle className="w-3.5 h-3.5" />
@@ -1445,9 +1521,12 @@ export const AdminPage: React.FC = () => {
                                     </button>
                                   </div>
                                 ) : (
-                                  <span className="text-slate-400 font-mono text-[11px] bg-slate-100 px-2.5 py-1 rounded-lg">
-                                    {o.status === 'APPROVED' ? 'Approved & Issued' : 'Rejected'}
-                                  </span>
+                                  <div className="text-right">
+                                    <span className="text-slate-500 font-mono text-[11px] bg-slate-100 px-2.5 py-1 rounded-lg block">
+                                      {o.status === 'APPROVED' ? 'Approved' : 'Rejected'}
+                                    </span>
+                                    {o.adminNote && <span className="text-[10px] text-slate-400 block mt-1">{o.adminNote}</span>}
+                                  </div>
                                 )}
                               </td>
                             </tr>
@@ -1890,7 +1969,7 @@ export const AdminPage: React.FC = () => {
                     {tutorials.map((tut) => (
                       <div key={tut.id} className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between">
                         <div className="p-4 space-y-3">
-                          <VideoEmbed url={tut.videoUrl} title={tut.title} />
+                          <VideoEmbed videoUrl={tut.videoUrl} title={tut.title} />
 
                           <div className="space-y-1.5 pt-1">
                             <div className="flex items-center justify-between gap-2">
@@ -3049,6 +3128,58 @@ export const AdminPage: React.FC = () => {
         </Modal>
       )}
 
+      {/* MODAL: PAYMENT APPROVAL */}
+      <Modal
+        isOpen={isPaymentModalOpen}
+        onClose={() => {
+          setIsPaymentModalOpen(false);
+          setSelectedOrder(null);
+          setPaymentActionType(null);
+          setAdminNote('');
+          setCustomLicenseKey('');
+        }}
+        title={`${paymentActionType === 'APPROVED' ? 'Approve' : 'Reject'} Payment - ${selectedOrder?.orderNumber}`}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              {paymentActionType === 'APPROVED' ? 'Admin Note (Optional)' : 'Rejection Reason (Optional)'}
+            </label>
+            <textarea
+              rows={3}
+              placeholder={paymentActionType === 'APPROVED' ? 'e.g., Payment verified, license issued.' : 'e.g., TrxID invalid or payment not received.'}
+              value={adminNote}
+              onChange={(e) => setAdminNote(e.target.value)}
+              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-purple-600"
+            />
+          </div>
+
+          {paymentActionType === 'APPROVED' && (
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Custom License Key (Optional)</label>
+              <input
+                type="text"
+                placeholder="e.g., APEX-XXXX-XXXX"
+                value={customLicenseKey}
+                onChange={(e) => setCustomLicenseKey(e.target.value.toUpperCase())}
+                className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-purple-600 font-mono uppercase"
+              />
+            </div>
+          )}
+
+          <div className="pt-2">
+            <button
+              onClick={handleUpdateOrderStatus}
+              className={`w-full py-3 text-white font-bold rounded-xl shadow-md ${
+                paymentActionType === 'APPROVED' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'
+              }`}
+            >
+              Confirm {paymentActionType === 'APPROVED' ? 'Approval' : 'Rejection'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       {/* MODAL: CREATE / EDIT TUTORIAL */}
       <Modal
         isOpen={isTutorialModalOpen}
@@ -3099,14 +3230,23 @@ export const AdminPage: React.FC = () => {
 
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">Video Link / URL *</label>
-            <input
-              type="url"
-              required
-              placeholder="https://www.youtube.com/watch?v=... or https://facebook.com/watch/?v=..."
-              value={tutVideoUrl}
-              onChange={(e) => setTutVideoUrl(e.target.value)}
-              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-purple-600 font-mono"
-            />
+            <div className="flex gap-2">
+              <input
+                type="url"
+                required
+                placeholder="https://www.youtube.com/watch?v=... or https://facebook.com/watch/?v=..."
+                value={tutVideoUrl}
+                onChange={(e) => setTutVideoUrl(e.target.value)}
+                className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-purple-600 font-mono"
+              />
+              <button
+                type="button"
+                onClick={handleSyncMetadata}
+                className="px-3 py-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
+              >
+                Sync
+              </button>
+            </div>
             <p className="text-[10px] text-slate-500 mt-1">
               Supports YouTube links, Facebook video URLs, Vimeo, TikTok, or direct video URLs.
             </p>
@@ -3137,7 +3277,7 @@ export const AdminPage: React.FC = () => {
           {tutVideoUrl && (
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
               <span className="text-[11px] font-bold text-slate-700 block">Live Video Embed Preview:</span>
-              <VideoEmbed url={tutVideoUrl} title={tutTitle || 'Preview'} />
+              <VideoEmbed videoUrl={tutVideoUrl} title={tutTitle || 'Preview'} />
             </div>
           )}
 

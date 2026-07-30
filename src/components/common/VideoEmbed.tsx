@@ -2,7 +2,7 @@ import React from 'react';
 import { ExternalLink, Play, Video } from 'lucide-react';
 
 interface VideoEmbedProps {
-  url: string;
+  videoUrl: string;
   title?: string;
   className?: string;
 }
@@ -39,8 +39,9 @@ export const getEmbedUrl = (url: string): { embedUrl: string | null; platform: '
   return { embedUrl: null, platform: 'other' };
 };
 
-export const VideoEmbed: React.FC<VideoEmbedProps> = ({ url, title = 'Video Tutorial', className = '' }) => {
-  const { embedUrl, platform } = getEmbedUrl(url);
+export const VideoEmbed: React.FC<VideoEmbedProps> = ({ videoUrl, title = 'Video Tutorial', className = '' }) => {
+  const { embedUrl, platform } = getEmbedUrl(videoUrl);
+  console.log('VideoEmbed:', { videoUrl, embedUrl, platform });
 
   if (embedUrl) {
     return (
@@ -67,7 +68,7 @@ export const VideoEmbed: React.FC<VideoEmbedProps> = ({ url, title = 'Video Tuto
         <p className="text-xs text-slate-400 line-clamp-2">Direct video link. Click to open and watch on external platform.</p>
       </div>
       <a
-        href={url}
+        href={videoUrl}
         target="_blank"
         rel="noopener noreferrer"
         className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition flex items-center space-x-1.5 backdrop-blur-md"

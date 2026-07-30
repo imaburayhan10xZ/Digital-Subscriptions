@@ -1,6 +1,8 @@
 import express from 'express';
 import path from 'path';
 import bcrypt from 'bcryptjs';
+import urlMetadata from 'url-metadata';
+import admin from 'firebase-admin';
 import { createServer as createViteServer } from 'vite';
 import { db } from './src/db/database.js';
 import { generateToken, authMiddleware, adminMiddleware, AuthRequest } from './src/server/auth.js';
@@ -126,6 +128,22 @@ async function startServer() {
     const user = db.getUserById(req.user.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
     return res.json({ user });
+  });
+
+  app.post('/api/video-metadata', async (req, res) => {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: 'URL is required' });
+    try {
+      const metadata = await urlMetadata(url);
+      res.json({
+        title: metadata.title,
+        description: metadata.description,
+        thumbnail: metadata.image,
+      });
+    } catch (e) {
+      console.error('Failed to fetch metadata', e);
+      res.status(500).json({ error: 'Failed to fetch metadata' });
+    }
   });
 
   app.put('/api/auth/profile', authMiddleware, (req: AuthRequest, res) => {
