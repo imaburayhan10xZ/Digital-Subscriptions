@@ -650,6 +650,7 @@ function ensureDbExists(): DatabaseSchema {
 let dbCache = ensureDbExists();
 
 export function saveDb() {
+  if (isVercel) return;
   try {
     if (!fs.existsSync(DB_DIR)) {
       fs.mkdirSync(DB_DIR, { recursive: true });
