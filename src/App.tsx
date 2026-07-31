@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider } from './context/AuthContext.tsx';
 import { CartProvider } from './context/CartContext.tsx';
+import { SiteSettingsSync } from './components/common/SiteSettingsSync.tsx';
 import { HomePage } from './pages/HomePage.tsx';
 import { DownloadsPage } from './pages/DownloadsPage.tsx';
 import { FAQPage } from './pages/FAQPage.tsx';
@@ -34,7 +35,10 @@ export default function App() {
     if (path === '/login') return <LoginPage />;
     if (path === '/register') return <RegisterPage />;
     if (path === '/dashboard') return <DashboardPage />;
-    if (path === '/admin') return <AdminPage />;
+    if (path === '/cmsadmin') {
+      // In a real app, you might want a loading state here
+      return <AdminPage />;
+    }
 
     return <HomePage />;
   };
@@ -42,6 +46,7 @@ export default function App() {
   return (
     <AuthProvider>
       <CartProvider>
+        <SiteSettingsSync />
         {renderRoute()}
       </CartProvider>
     </AuthProvider>

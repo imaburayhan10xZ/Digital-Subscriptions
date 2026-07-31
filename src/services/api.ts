@@ -18,8 +18,17 @@ import {
   ManualSetupStatus
 } from '../types/index.js';
 
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('apexboost_token');
+import { auth } from '../lib/firebase.js';
+import { signOut } from 'firebase/auth';
+
+const getAuthHeaders = async () => {
+  if (!auth.currentUser) {
+    console.log('getAuthHeaders: No current user, logging out');
+    await signOut(auth);
+    throw new Error('Unauthorized: No user logged in');
+  }
+  const token = await auth.currentUser.getIdToken(true);
+  console.log('getAuthHeaders token:', token ? 'token present' : 'no token');
   return {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -27,6 +36,11 @@ const getAuthHeaders = () => {
 };
 
 async function handleResponse<T>(res: Response): Promise<T> {
+  if (res.status === 401) {
+    await signOut(auth);
+    window.location.href = '/login';
+    throw new Error('Unauthorized');
+  }
   const contentType = res.headers.get('content-type');
   if (contentType && contentType.includes('application/json')) {
     const data = await res.json();
@@ -49,27 +63,9 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 export const api = {
   // Auth
-  register: async (payload: { name: string; email: string; password: string; phone?: string }) => {
-    const res = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    return handleResponse<{ token: string; user: User }>(res);
-  },
-
-  login: async (payload: { email: string; password: string }) => {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    return handleResponse<{ token: string; user: User }>(res);
-  },
-
   getMe: async () => {
     const res = await fetch('/api/auth/me', {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<{ user: User }>(res);
   },
@@ -77,7 +73,7 @@ export const api = {
   updateProfile: async (payload: { name?: string; phone?: string; currentPassword?: string; newPassword?: string }) => {
     const res = await fetch('/api/auth/profile', {
       method: 'PUT',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     return handleResponse<{ user: User }>(res);
@@ -92,7 +88,7 @@ export const api = {
   createCategory: async (payload: Partial<Category>) => {
     const res = await fetch('/api/categories', {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     return handleResponse<Category>(res);
@@ -101,7 +97,7 @@ export const api = {
   updateCategory: async (id: string, payload: Partial<Category>) => {
     const res = await fetch(`/api/categories/${id}`, {
       method: 'PUT',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     return handleResponse<Category>(res);
@@ -110,7 +106,7 @@ export const api = {
   deleteCategory: async (id: string) => {
     const res = await fetch(`/api/categories/${id}`, {
       method: 'DELETE',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<{ success: boolean }>(res);
   },
@@ -129,7 +125,7 @@ export const api = {
   createProduct: async (payload: Partial<Product>) => {
     const res = await fetch('/api/products', {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     return handleResponse<Product>(res);
@@ -138,7 +134,7 @@ export const api = {
   updateProduct: async (id: string, payload: Partial<Product>) => {
     const res = await fetch(`/api/products/${id}`, {
       method: 'PUT',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     return handleResponse<Product>(res);
@@ -147,7 +143,7 @@ export const api = {
   cloneProduct: async (id: string) => {
     const res = await fetch(`/api/products/${id}/clone`, {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<Product>(res);
   },
@@ -155,7 +151,7 @@ export const api = {
   deleteProduct: async (id: string) => {
     const res = await fetch(`/api/products/${id}`, {
       method: 'DELETE',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<{ success: boolean }>(res);
   },
@@ -181,7 +177,7 @@ export const api = {
   }) => {
     const res = await fetch('/api/orders', {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     return handleResponse<{ order: Order; autoActivated: boolean }>(res);
@@ -189,14 +185,14 @@ export const api = {
 
   getUserOrders: async () => {
     const res = await fetch('/api/orders/user', {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<Order[]>(res);
   },
 
   getAllOrders: async () => {
     const res = await fetch('/api/orders', {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<Order[]>(res);
   },
@@ -204,7 +200,7 @@ export const api = {
   updateOrderStatus: async (id: string, status: string, adminNote?: string, customLicenseKey?: string) => {
     const res = await fetch(`/api/orders/${id}/status`, {
       method: 'PUT',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ status, adminNote, customLicenseKey }),
     });
     return handleResponse<Order>(res);
@@ -213,7 +209,7 @@ export const api = {
   // Licenses
   getUserLicenses: async () => {
     const res = await fetch('/api/licenses/user', {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<License[]>(res);
   },
@@ -221,7 +217,7 @@ export const api = {
   resetHwid: async (licenseId: string) => {
     const res = await fetch(`/api/licenses/reset-hwid/${licenseId}`, {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<{ success: boolean; license: License }>(res);
   },
@@ -229,7 +225,7 @@ export const api = {
   updateLicense: async (id: string, updates: Partial<License>) => {
     const res = await fetch(`/api/licenses/${id}`, {
       method: 'PUT',
-      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      headers: { ...(await getAuthHeaders()), 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     });
     return handleResponse<License>(res);
@@ -238,7 +234,7 @@ export const api = {
   setUserHwid: async (hwid: string) => {
     const res = await fetch('/api/user/hwid', {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ hwid }),
     });
     return handleResponse<{ user: User; success: boolean }>(res);
@@ -247,14 +243,14 @@ export const api = {
   resetUserHwid: async (userId: string) => {
     const res = await fetch(`/api/admin/users/${userId}/reset-hwid`, {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<{ user: User; success: boolean }>(res);
   },
 
   getAllLicenses: async () => {
     const res = await fetch('/api/licenses', {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<License[]>(res);
   },
@@ -270,25 +266,18 @@ export const api = {
   }) => {
     const res = await fetch('/api/licenses', {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     return handleResponse<License>(res);
   },
 
-  updateLicense: async (id: string, payload: Partial<License>) => {
-    const res = await fetch(`/api/licenses/${id}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(payload),
-    });
-    return handleResponse<License>(res);
-  },
+  // Removing duplicate updateLicense definition, using the one at 229 instead.
 
   deleteLicense: async (id: string) => {
     const res = await fetch(`/api/licenses/${id}`, {
       method: 'DELETE',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<{ success: boolean }>(res);
   },
@@ -302,7 +291,7 @@ export const api = {
   createDownload: async (payload: Partial<DownloadRelease>) => {
     const res = await fetch('/api/downloads', {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     return handleResponse<DownloadRelease>(res);
@@ -311,7 +300,7 @@ export const api = {
   deleteDownload: async (id: string) => {
     const res = await fetch(`/api/downloads/${id}`, {
       method: 'DELETE',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<{ success: boolean }>(res);
   },
@@ -327,7 +316,7 @@ export const api = {
   // Support Tickets
   getTickets: async () => {
     const res = await fetch('/api/tickets', {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<SupportTicket[]>(res);
   },
@@ -335,7 +324,7 @@ export const api = {
   createTicket: async (payload: { subject: string; category: string; priority: string; message: string }) => {
     const res = await fetch('/api/tickets', {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     return handleResponse<SupportTicket>(res);
@@ -344,7 +333,7 @@ export const api = {
   replyTicket: async (ticketId: string, message: string) => {
     const res = await fetch(`/api/tickets/${ticketId}/reply`, {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ message }),
     });
     return handleResponse<SupportTicket>(res);
@@ -353,7 +342,7 @@ export const api = {
   updateTicketStatus: async (ticketId: string, status: string, priority?: string) => {
     const res = await fetch(`/api/tickets/${ticketId}/status`, {
       method: 'PUT',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ status, priority }),
     });
     return handleResponse<SupportTicket>(res);
@@ -368,7 +357,7 @@ export const api = {
   createAnnouncement: async (payload: { title: string; content: string; type: string; linkUrl?: string }) => {
     const res = await fetch('/api/announcements', {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     return handleResponse<Announcement>(res);
@@ -377,7 +366,7 @@ export const api = {
   deleteAnnouncement: async (id: string) => {
     const res = await fetch(`/api/announcements/${id}`, {
       method: 'DELETE',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<{ success: boolean }>(res);
   },
@@ -391,7 +380,7 @@ export const api = {
   updateSettings: async (payload: Partial<SiteSettings>) => {
     const res = await fetch('/api/settings', {
       method: 'PUT',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     return handleResponse<SiteSettings>(res);
@@ -400,7 +389,7 @@ export const api = {
   // Coupons Admin
   getCoupons: async () => {
     const res = await fetch('/api/coupons', {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<Coupon[]>(res);
   },
@@ -408,7 +397,7 @@ export const api = {
   createCoupon: async (payload: { code: string; discountPercent: number; maxUses: number; expiresAt: string }) => {
     const res = await fetch('/api/coupons', {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     return handleResponse<Coupon>(res);
@@ -417,7 +406,7 @@ export const api = {
   deleteCoupon: async (id: string) => {
     const res = await fetch(`/api/coupons/${id}`, {
       method: 'DELETE',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<{ success: boolean }>(res);
   },
@@ -425,7 +414,7 @@ export const api = {
   // Admin Users & Analytics
   getAdminUsers: async () => {
     const res = await fetch('/api/admin/users', {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<User[]>(res);
   },
@@ -433,7 +422,7 @@ export const api = {
   toggleUserBlock: async (id: string, isBlocked: boolean, role?: string) => {
     const res = await fetch(`/api/admin/users/${id}/block`, {
       method: 'PUT',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ isBlocked, role }),
     });
     return handleResponse<User>(res);
@@ -441,7 +430,7 @@ export const api = {
 
   getAdminStats: async () => {
     const res = await fetch('/api/admin/stats', {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<{
       totalRevenue: number;
@@ -457,7 +446,7 @@ export const api = {
 
   getAdminLogs: async () => {
     const res = await fetch('/api/admin/logs', {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<AuditLog[]>(res);
   },
@@ -465,7 +454,7 @@ export const api = {
   // Redeem Keys
   getRedeemKeys: async () => {
     const res = await fetch('/api/admin/redeem-keys', {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<RedeemKey[]>(res);
   },
@@ -480,7 +469,7 @@ export const api = {
   }) => {
     const res = await fetch('/api/admin/redeem-keys', {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     return handleResponse<RedeemKey>(res);
@@ -489,7 +478,7 @@ export const api = {
   deleteRedeemKey: async (id: string) => {
     const res = await fetch(`/api/admin/redeem-keys/${id}`, {
       method: 'DELETE',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<{ success: boolean }>(res);
   },
@@ -497,7 +486,7 @@ export const api = {
   redeemKey: async (code: string, productId: string) => {
     const res = await fetch('/api/checkout/redeem', {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ code, productId }),
     });
     return handleResponse<{ success: boolean; order: Order; license: License }>(res);
@@ -506,7 +495,7 @@ export const api = {
   // Notifications
   getNotifications: async () => {
     const res = await fetch('/api/notifications', {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<{ notifications: UserNotification[]; unreadCount: number }>(res);
   },
@@ -514,7 +503,7 @@ export const api = {
   markNotificationRead: async (id: string) => {
     const res = await fetch(`/api/notifications/${id}/read`, {
       method: 'PUT',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<UserNotification>(res);
   },
@@ -522,7 +511,7 @@ export const api = {
   markAllNotificationsRead: async () => {
     const res = await fetch('/api/notifications/read-all', {
       method: 'PUT',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<{ success: boolean }>(res);
   },
@@ -530,7 +519,7 @@ export const api = {
   deleteNotification: async (id: string) => {
     const res = await fetch(`/api/notifications/${id}`, {
       method: 'DELETE',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<{ success: boolean }>(res);
   },
@@ -544,7 +533,7 @@ export const api = {
   }) => {
     const res = await fetch('/api/admin/notifications', {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     return handleResponse<{ count: number }>(res);
@@ -567,7 +556,7 @@ export const api = {
   }) => {
     const res = await fetch('/api/tutorials', {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     return handleResponse<Tutorial>(res);
@@ -587,7 +576,7 @@ export const api = {
   ) => {
     const res = await fetch(`/api/tutorials/${id}`, {
       method: 'PUT',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     return handleResponse<Tutorial>(res);
@@ -596,7 +585,7 @@ export const api = {
   deleteTutorial: async (id: string) => {
     const res = await fetch(`/api/tutorials/${id}`, {
       method: 'DELETE',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<{ success: boolean }>(res);
   },
@@ -604,14 +593,14 @@ export const api = {
   // Manual Setup Requests
   getAdminManualSetupRequests: async () => {
     const res = await fetch('/api/admin/manual-setup-requests', {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<ManualSetupRequest[]>(res);
   },
 
   getUserManualSetupRequests: async () => {
     const res = await fetch('/api/user/manual-setup-requests', {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<ManualSetupRequest[]>(res);
   },
@@ -625,7 +614,7 @@ export const api = {
   }) => {
     const res = await fetch('/api/manual-setup-requests', {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     return handleResponse<ManualSetupRequest>(res);
@@ -634,7 +623,7 @@ export const api = {
   updateManualSetupRequestStatus: async (id: string, status: ManualSetupStatus, adminNote?: string) => {
     const res = await fetch(`/api/admin/manual-setup-requests/${id}/status`, {
       method: 'PUT',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ status, adminNote }),
     });
     return handleResponse<ManualSetupRequest>(res);
@@ -643,7 +632,7 @@ export const api = {
   deleteManualSetupRequest: async (id: string) => {
     const res = await fetch(`/api/admin/manual-setup-requests/${id}`, {
       method: 'DELETE',
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
     return handleResponse<{ success: boolean }>(res);
   },

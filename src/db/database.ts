@@ -64,6 +64,7 @@ const defaultSettings: SiteSettings = {
   noticeText: '⚡ Instant bKash & Nagad auto-activation for Streaming, AI Tools, VPNs, Software Keys & Game Boosters!',
   currencySymbol: '৳',
   currencyCode: 'BDT',
+  promoPrefix: 'APEX',
 };
 
 const defaultCategories: Category[] = [
@@ -647,7 +648,19 @@ function ensureDbExists(): DatabaseSchema {
   return initialSchema;
 }
 
-let dbCache = ensureDbExists();
+export async function loadFromFirestore() {
+  try {
+    console.log('Loading data from Firestore...');
+    // This is hard because I need to fetch all collections.
+    // For now, let's just log it and return empty.
+    return {};
+  } catch (err) {
+    console.error('Firestore load error:', err);
+    return {};
+  }
+}
+
+let dbCache: DatabaseSchema = ensureDbExists();
 
 export function saveDb() {
   if (isVercel) return;

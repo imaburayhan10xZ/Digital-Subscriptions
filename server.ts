@@ -1,11 +1,10 @@
 import express from 'express';
 import path from 'path';
-import bcrypt from 'bcryptjs';
 import urlMetadata from 'url-metadata';
 import { createServer as createViteServer } from 'vite';
 import { db } from './src/db/database.js';
 import { syncToFirestore } from './src/lib/firestoreSync.js';
-import { generateToken, authMiddleware, adminMiddleware, AuthRequest } from './src/server/auth.js';
+import { authMiddleware, adminMiddleware, AuthRequest } from './src/server/auth.js';
 import {
   User,
   Product,
@@ -39,88 +38,7 @@ function generateLicenseKey(): string {
   return `APEX-${randPart(4)}-${randPart(4)}-${randPart(4)}-PRO`;
 }
 
-  // ==================== AUTH ROUTES ====================
-  app.post('/api/auth/register', (req, res) => {
-    try {
-      const { name, email, password, phone } = req.body;
-      if (!email || !password || !name) {
-        return res.status(400).json({ error: 'Name, email, and password are required.' });
-      }
-
-      const existing = db.getUserByEmail(email);
-      if (existing) {
-        return res.status(400).json({ error: 'An account with this email already exists.' });
-      }
-
-      const userId = 'usr_' + Date.now();
-      const passwordHash = bcrypt.hashSync(password, 10);
-
-      const newUser: User = {
-        id: userId,
-        name,
-        email: email.toLowerCase(),
-        phone: phone || '',
-        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`,
-        role: 'CUSTOMER',
-        isVerified: true,
-        isBlocked: false,
-        createdAt: new Date().toISOString(),
-        lastLoginAt: new Date().toISOString(),
-      };
-
-      db.createUser(newUser, passwordHash);
-      db.addLog('USER_REGISTER', newUser.email, `New customer registered: ${name}`);
-
-      const token = generateToken({
-        id: newUser.id,
-        email: newUser.email,
-        role: newUser.role,
-        name: newUser.name,
-      });
-
-      return res.json({ token, user: newUser });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message || 'Registration failed' });
-    }
-  });
-
-  app.post('/api/auth/login', (req, res) => {
-    try {
-      const { email, password } = req.body;
-      if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password are required.' });
-      }
-
-      const user = db.getUserByEmail(email);
-      if (!user) {
-        return res.status(401).json({ error: 'Invalid email or password credentials.' });
-      }
-
-      if (user.isBlocked) {
-        return res.status(403).json({ error: 'This account has been suspended by administration.' });
-      }
-
-      const passwordHash = db.getUserPasswordHash(user.id);
-      const isMatch = bcrypt.compareSync(password, passwordHash);
-      if (!isMatch) {
-        return res.status(401).json({ error: 'Invalid email or password credentials.' });
-      }
-
-      db.updateUser(user.id, { lastLoginAt: new Date().toISOString() });
-      db.addLog('USER_LOGIN', user.email, `Logged in successfully as ${user.role}`);
-
-      const token = generateToken({
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        name: user.name,
-      });
-
-      return res.json({ token, user });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message || 'Login failed' });
-    }
-  });
+  // ==================== AUTH ROUTES REMOVED ====================
 
   app.get('/api/auth/me', authMiddleware, (req: AuthRequest, res) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthenticated' });
@@ -155,18 +73,6 @@ function generateLicenseKey(): string {
     const updates: Partial<User> = {};
     if (name) updates.name = name;
     if (phone !== undefined) updates.phone = phone;
-
-    if (newPassword) {
-      if (!currentPassword) {
-        return res.status(400).json({ error: 'Current password is required to set new password.' });
-      }
-      const existingHash = db.getUserPasswordHash(user.id);
-      if (!bcrypt.compareSync(currentPassword, existingHash)) {
-        return res.status(400).json({ error: 'Current password is incorrect.' });
-      }
-      const newHash = bcrypt.hashSync(newPassword, 10);
-      db.setUserPasswordHash(user.id, newHash);
-    }
 
     const updated = db.updateUser(user.id, updates);
     db.addLog('USER_UPDATE_PROFILE', user.email, 'Updated profile information');
@@ -1289,9 +1195,14 @@ function generateLicenseKey(): string {
 
   // ==================== NOTIFICATIONS ROUTES ====================
   app.get('/api/notifications', authMiddleware, (req: AuthRequest, res) => {
-    if (!req.user) return res.status(401).json({ error: 'Unauthenticated' });
+    console.log('GET /api/notifications called');
+    if (!req.user) {
+      console.log('No user in req');
+      return res.status(401).json({ error: 'Unauthenticated' });
+    }
     const notifications = db.getNotifications(req.user.id);
     const unreadCount = notifications.filter((n) => !n.isRead).length;
+    console.log(`Found ${notifications.length} notifications for user ${req.user.id}`);
     return res.json({ notifications, unreadCount });
   });
 
@@ -1363,7 +1274,7 @@ function generateLicenseKey(): string {
 
   app.post('/api/admin/sync-firestore', authMiddleware, adminMiddleware, async (req: AuthRequest, res) => {
     try {
-      const fullDb = db.getFullDatabase();
+      const fullDb = db.state;
       await syncToFirestore(fullDb);
       return res.json({ success: true, message: 'Sync to Firestore initiated' });
     } catch (e: any) {

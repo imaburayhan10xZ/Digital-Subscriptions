@@ -1,14 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, SiteSettings, Announcement } from '../types/index.js';
 import { api } from '../services/api.js';
+import { auth } from '../lib/firebase.js';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
   loading: boolean;
   settings: SiteSettings | null;
   announcements: Announcement[];
-  login: (token: string, user: User) => void;
   logout: () => void;
   refreshUser: () => Promise<void>;
   refreshSettings: () => Promise<void>;
@@ -19,7 +19,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('apexboost_token'));
   const [loading, setLoading] = useState<boolean>(true);
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -35,18 +34,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const refreshUser = async () => {
-    if (!token) {
+  const refreshUser = async (firebaseUser: any) => {
+    if (!firebaseUser) {
       setUser(null);
       setLoading(false);
       return;
     }
     try {
-      const res = await api.getMe();
-      setUser(res.user);
+      // In a real app, you might fetch additional profile data from Firestore here
+      // Based on previous authMiddleware logic, we trust the ID token's claims
+      setUser({
+        id: firebaseUser.uid,
+        email: firebaseUser.email || '',
+        name: firebaseUser.displayName || '',
+        role: firebaseUser.email === 'aburayhan10x@gmail.com' ? 'ADMIN' : 'CUSTOMER',
+        avatarUrl: firebaseUser.photoURL || '',
+      } as User);
     } catch (e) {
-      console.error('Session expired or invalid token:', e);
-      logout();
+      console.error('Failed to refresh user:', e);
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -54,19 +60,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     refreshSettings();
-    refreshUser();
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      refreshUser(firebaseUser);
+    });
+    return () => unsubscribe();
   }, []);
 
-  const login = (newToken: string, newUser: User) => {
-    localStorage.setItem('apexboost_token', newToken);
-    setToken(newToken);
-    setUser(newUser);
-  };
-
-  const logout = () => {
-    localStorage.removeItem('apexboost_token');
-    setToken(null);
-    setUser(null);
+  const logout = async () => {
+    await signOut(auth);
   };
 
   const isAdmin = user?.role === 'ADMIN';
@@ -75,13 +76,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider
       value={{
         user,
-        token,
         loading,
         settings,
         announcements,
-        login,
         logout,
-        refreshUser,
+        refreshUser: () => refreshUser(auth.currentUser),
         refreshSettings,
         isAdmin,
       }}

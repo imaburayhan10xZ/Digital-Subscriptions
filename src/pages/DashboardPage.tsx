@@ -48,7 +48,7 @@ import {
 } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
-  const { user, logout, settings, refreshUser } = useAuth();
+  const { user, logout, settings, refreshUser, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<'overview' | 'licenses' | 'hwid' | 'downloads' | 'tutorials' | 'payments' | 'tickets' | 'profile' | 'notifications'>('overview');
 
   // User state
@@ -125,12 +125,17 @@ export const DashboardPage: React.FC = () => {
   });
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      window.location.href = '/login';
+      return;
+    }
     fetchUserData();
     api.getProducts().then((prods) => {
       setAllProducts(prods);
       if (prods.length > 0) setDashboardProductId(prods[0].id);
     }).catch((e) => console.error(e));
-  }, []);
+  }, [authLoading, user]);
 
   const POWERSHELL_HWID_CMD = `powershell -NoProfile -ExecutionPolicy Bypass -Command "$sid=([System.Security.Principal.WindowsIdentity]::GetCurrent()).User.Value;Set-Clipboard $sid;$path=$env:TEMP+'\\SID.txt';Set-Content -Path $path -Value $sid -Encoding UTF8;notepad $path"`;
 

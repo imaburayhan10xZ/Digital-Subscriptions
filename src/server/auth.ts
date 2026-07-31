@@ -1,8 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
 import { UserRole } from '../types/index.js';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'apexboost_secret_jwt_key_2026_super_secure';
+import { adminAuth } from '../lib/firebase-admin.js';
 
 export interface AuthUser {
   id: string;
@@ -15,20 +13,7 @@ export interface AuthRequest extends Request {
   user?: AuthUser;
 }
 
-export function generateToken(user: AuthUser): string {
-  return jwt.sign(
-    {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      name: user.name,
-    },
-    JWT_SECRET,
-    { expiresIn: '7d' }
-  );
-}
-
-export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
+export async function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized: No token provided' });
@@ -36,10 +21,20 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
 
   const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as AuthUser;
-    req.user = decoded;
+    const decodedToken = await adminAuth.verifyIdToken(token);
+    console.log('Token verified for user:', decodedToken.uid);
+    
+    // In a real app, you'd fetch the user's role from Firestore here.
+    // For now, let's keep it simple as per instructions.
+    req.user = {
+      id: decodedToken.uid,
+      email: decodedToken.email || '',
+      role: decodedToken.email === 'aburayhan10x@gmail.com' ? 'ADMIN' : 'CUSTOMER',
+      name: decodedToken.name || '',
+    };
     next();
   } catch (err) {
+    console.error('Token verification failed:', err);
     return res.status(401).json({ error: 'Unauthorized: Invalid or expired token' });
   }
 }

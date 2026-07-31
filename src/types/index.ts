@@ -253,6 +253,7 @@ export interface SiteSettings {
   noticeText: string;
   currencySymbol: string; // e.g. '৳' or '$'
   currencyCode: string; // 'BDT' or 'USD'
+  promoPrefix: string; // Add this field
 }
 
 export interface Category {

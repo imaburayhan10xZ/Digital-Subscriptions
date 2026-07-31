@@ -2219,6 +2219,16 @@ export const AdminPage: React.FC = () => {
                         className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
                       />
                     </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Promo Prefix (First 4 Digits)</label>
+                      <input
+                        type="text"
+                        maxLength={4}
+                        value={settingsForm.promoPrefix || ''}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, promoPrefix: e.target.value.substring(0, 4) })}
+                        className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono"
+                      />
+                    </div>
                   </div>
 
                   <h3 className="text-sm font-bold text-slate-900 pt-4 pb-2 border-b border-slate-100">Bangladesh Payment Gateway Numbers</h3>
