@@ -3,13 +3,13 @@ import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDUmN8a_aMiRL5tnZqlVA2ySoPOxX-Gtzk",
-  authDomain: "caramel-poet-vgxqk.firebaseapp.com",
-  projectId: "caramel-poet-vgxqk",
-  storageBucket: "caramel-poet-vgxqk.firebasestorage.app",
-  messagingSenderId: "858474249110",
-  appId: "1:858474249110:web:ef9c60b0d204af3a963bb7",
-  measurementId: ""
+  apiKey: "AIzaSyBt5k-SNFTP5aDLDg2pt8DhRdqyZrR-4d4",
+  authDomain: "digital-subs.firebaseapp.com",
+  projectId: "digital-subs",
+  storageBucket: "digital-subs.firebasestorage.app",
+  messagingSenderId: "255188257688",
+  appId: "1:255188257688:web:40c466ae3e94b4ad05f9ed",
+  measurementId: "G-EHFMVSFQY5"
 };
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
