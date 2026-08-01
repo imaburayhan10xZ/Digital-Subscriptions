@@ -1,5 +1,4 @@
-import { db } from './firebase.js';
-import { doc, setDoc } from 'firebase/firestore';
+import { adminDb } from './firebase-admin.js';
 
 let firestoreDisabled = false;
 
@@ -13,7 +12,7 @@ export async function syncToFirestore(dbData: any) {
       for (const item of items) {
         if (item && item.id && !firestoreDisabled) {
           try {
-            await setDoc(doc(db, collectionName, String(item.id)), item, { merge: true });
+            await adminDb.collection(collectionName).doc(String(item.id)).set(item, { merge: true });
           } catch (err: any) {
             firestoreDisabled = true;
             console.warn(`Firestore sync disabled for ${collectionName}:`, err?.message || err);
@@ -30,10 +29,11 @@ export async function syncToFirestore(dbData: any) {
     await syncCollection('licenses', dbData.licenses);
     await syncCollection('downloads', dbData.downloads);
     await syncCollection('tutorials', dbData.tutorials);
+    await syncCollection('notifications', dbData.notifications);
 
     if (dbData.settings && !firestoreDisabled) {
       try {
-        await setDoc(doc(db, 'settings', 'site_settings'), dbData.settings, { merge: true });
+        await adminDb.collection('settings').doc('site_settings').set(dbData.settings, { merge: true });
       } catch (err: any) {
         firestoreDisabled = true;
       }

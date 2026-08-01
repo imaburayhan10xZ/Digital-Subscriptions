@@ -147,9 +147,11 @@ function generateLicenseKey(): string {
   });
 
   app.post('/api/categories', authMiddleware, adminMiddleware, (req: AuthRequest, res) => {
+    console.log('Received POST /api/categories request:', req.body);
     try {
       const { name, slug, description, displayOrder } = req.body;
       if (!name) {
+        console.log('Category name is missing');
         return res.status(400).json({ error: 'Category name is required' });
       }
 
@@ -165,10 +167,14 @@ function generateLicenseKey(): string {
         createdAt: new Date().toISOString(),
       };
 
+      console.log('Attempting to create category:', newCat);
       db.createCategory(newCat);
+      console.log('Category created in dbCache');
       db.addLog('CREATE_CATEGORY', req.user!.email, `Created new category: ${name}`);
+      console.log('Log added');
       return res.json(newCat);
     } catch (e: any) {
+      console.error('Error in POST /api/categories:', e);
       return res.status(500).json({ error: e.message || 'Failed to create category' });
     }
   });

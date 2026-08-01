@@ -663,15 +663,19 @@ export async function loadFromFirestore() {
 let dbCache: DatabaseSchema = ensureDbExists();
 
 export function saveDb() {
-  if (isVercel) return;
   try {
-    if (!fs.existsSync(DB_DIR)) {
-      fs.mkdirSync(DB_DIR, { recursive: true });
+    if (!isVercel) {
+      if (!fs.existsSync(DB_DIR)) {
+        fs.mkdirSync(DB_DIR, { recursive: true });
+      }
+      fs.writeFileSync(DB_FILE, JSON.stringify(dbCache, null, 2), 'utf-8');
     }
-    fs.writeFileSync(DB_FILE, JSON.stringify(dbCache, null, 2), 'utf-8');
   } catch (err) {
     console.warn('Failed to save DB file to disk:', err);
   }
+
+  // Always attempt to sync to Firestore, even on Vercel
+  syncToFirestore(dbCache).catch(err => console.error('Failed to sync to Firestore:', err));
 }
 
 export const db = {
