@@ -1,11 +1,12 @@
-import { initializeApp } from 'firebase-admin/app';
+import { initializeApp, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
-import config from '../../firebase-applet-config.json';
+import serviceAccount from './service-account.json';
 
 initializeApp({
-  projectId: config.projectId,
+  credential: cert(serviceAccount as any),
+  projectId: "digital-subs",
 });
 
 export const adminAuth = getAuth();
-export const adminDb = getFirestore();
+export const adminDb = getFirestore(undefined, 'default');
